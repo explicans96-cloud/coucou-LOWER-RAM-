@@ -334,6 +334,8 @@ fn begin(app: &AppHandle, flow: &Arc<Flow>) -> Option<Listening> {
     });
     match capture {
         Ok(capture) => {
+            // Reload an idle-evicted model while the user speaks, off this thread.
+            speech::preload();
             let app_front = os::foreground_app().filter(|(id, _)| !is_shell(id));
             pill::update(app, |s| s.phase = "listening".into());
             let quiet = flow.store.lock().unwrap().prefs.mute_others;

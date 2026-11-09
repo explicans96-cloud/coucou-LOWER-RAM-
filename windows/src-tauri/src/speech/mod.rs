@@ -8,6 +8,7 @@
 // ~/.local/share/coucou/Models (Linux). From then on everything runs offline.
 
 pub mod audio;
+mod cache;
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -266,9 +267,28 @@ pub fn remove(app: &AppHandle) {
 
 // ── Recognition ───────────────────────────────────────────────────────────────
 
-fn recognizer_slot() -> &'static Mutex<Option<Arc<OfflineRecognizer>>> {
-    static R: OnceLock<Mutex<Option<Arc<OfflineRecognizer>>>> = OnceLock::new();
-    R.get_or_init(|| Mutex::new(None))
+fn recognizer_slot() -> &'static Mutex<cache::Cache<OfflineRecognizer>> {
+    static R: OnceLock<Mutex<cache::Cache<OfflineRecognizer>>> = OnceLock::new();
+    R.get_or_init(|| Mutex::new(cache::Cache::new()))
+}
+
+/// Release the model after a quiet gap between recordings.
+pub(crate) fn start_cache_maintenance(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(2));
+        let keep_warm = crate::flow::pill::dictating(&app)
+            || crate::notes::is_recording(&app)
+            || crate::voice::is_listening();
+        // Do not overlap destroying the old ONNX model and loading a new one.
+        let _load = load_lock().lock().unwrap();
+        let expired = recognizer_slot().lock().unwrap().take_idle(
+            Instant::now(), cache::IDLE_TIMEOUT, keep_warm,
+        );
+        if let Some(model) = expired {
+            drop(model);
+            crate::log::line("Parakeet released after 30 idle seconds");
+        }
+    });
 }
 
 /// Serialises loading: two callers never load the 650 MB model twice.
@@ -283,14 +303,14 @@ fn threads() -> i32 {
 
 /// The loaded recognizer, loading it on first use (about 2 s).
 pub fn recognizer() -> Option<Arc<OfflineRecognizer>> {
-    if let Some(r) = recognizer_slot().lock().unwrap().clone() {
+    if let Some(r) = recognizer_slot().lock().unwrap().get() {
         return Some(r);
     }
     if !PARAKEET.is_present() {
         return None;
     }
     let _guard = load_lock().lock().unwrap();
-    if let Some(r) = recognizer_slot().lock().unwrap().clone() {
+    if let Some(r) = recognizer_slot().lock().unwrap().get() {
         return Some(r);
     }
     let mut config = OfflineRecognizerConfig::default();
@@ -308,13 +328,13 @@ pub fn recognizer() -> Option<Arc<OfflineRecognizer>> {
         Some(_) => crate::log::line(format!("Parakeet loaded in {:?}", started.elapsed())),
         None => crate::log::line("Parakeet could not be loaded"),
     }
-    *recognizer_slot().lock().unwrap() = r.clone();
+    recognizer_slot().lock().unwrap().set(r.clone());
     r
 }
 
 /// Loads the model in the background, so the first dictation is not slowed down.
 pub fn preload() {
-    if !PARAKEET.is_present() || recognizer_slot().lock().unwrap().is_some() {
+    if !PARAKEET.is_present() || recognizer_slot().lock().unwrap().get().is_some() {
         return;
     }
     std::thread::spawn(|| {
@@ -324,7 +344,7 @@ pub fn preload() {
 
 /// Frees the model's memory (dictation turned off, models removed).
 pub fn unload() {
-    *recognizer_slot().lock().unwrap() = None;
+    recognizer_slot().lock().unwrap().set(None);
 }
 
 /// What was said, and each word with its place in the audio.
@@ -487,6 +507,37 @@ mod tests {
 /// With the models downloaded: `COUCOU_TEST_WAV=… cargo test -- --ignored speech`.
 #[cfg(test)]
 mod with_models {
+    /// Exercises ONNX destruction and reload with a real recording, not a mock.
+    #[test]
+    #[ignore]
+    fn model_reloads_after_idle_eviction() {
+        let path = std::env::var("COUCOU_TEST_WAV").expect("COUCOU_TEST_WAV");
+        let bytes = std::fs::read(&path).unwrap();
+        let rate = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
+        let pcm = super::audio::read_wav(std::path::Path::new(&path)).unwrap();
+        let mut resampler = super::audio::Resampler::new(rate);
+        let mut samples = Vec::new();
+        resampler.process(&pcm, &mut samples);
+        let before = super::transcribe(&samples).expect("models");
+        assert!(!before.text.is_empty());
+        let model = super::recognizer().unwrap();
+        let weak = std::sync::Arc::downgrade(&model);
+        let timeout = super::cache::IDLE_TIMEOUT;
+        let future = std::time::Instant::now() + timeout * 2;
+        assert!(super::recognizer_slot().lock().unwrap().take_idle(
+            future, timeout, false,
+        ).is_none(), "a borrowed recognizer must stay loaded");
+        drop(model);
+        let expired = super::recognizer_slot().lock().unwrap().take_idle(
+            future + timeout, timeout, false,
+        );
+        assert!(expired.is_some());
+        drop(expired);
+        assert!(weak.upgrade().is_none(), "the old ONNX model must be destroyed");
+        let after = super::transcribe(&samples).expect("models must reload");
+        assert_eq!(before.text, after.text);
+    }
+
     #[test]
     fn the_model_hears_silence_around_the_words() {
         let chunk = vec![0.5f32; 1000];
