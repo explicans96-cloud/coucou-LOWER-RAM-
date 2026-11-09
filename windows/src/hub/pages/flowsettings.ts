@@ -5,7 +5,7 @@
 import { h, clear } from "../../views/dom";
 import { t } from "../../i18n/i18n";
 import { onEvent } from "../../core/bridge";
-import { FlowBridge, flowKeyId, type Edge, type FlowKey, type ModelsStatus } from "../../core/flow";
+import { FlowBridge, flowKeyId, type Edge, type FlowKey, type MemoryPreset, type ModelsStatus } from "../../core/flow";
 import { comboFromKeys } from "../keys";
 import type { HubContext } from "../shell";
 import { pageSave } from "../save";
@@ -127,9 +127,19 @@ export async function flowSettingsPage(page: HTMLElement, ctx: HubContext) {
   page.append(anchor("flow.permission", micCard));
 
   // ── Recognition ──
+  const memoryPresets: [MemoryPreset, string][] = [
+    ["max-performance", t("Max Performance · 30 seconds")],
+    ["balanced", t("Balanced · 2 minutes")],
+    ["always-ready", t("Always Ready · keep loaded")],
+  ];
+  const memoryPreset = select(memoryPresets, prefs.memoryPreset ?? "max-performance",
+    (preset) => void ctx.setPrefs((p) => (p.memoryPreset = preset)));
+  memoryPreset.setAttribute("aria-label", t("Model memory preset"));
   page.append(label(t("Recognition")));
   page.append(anchor("flow.recognition", card(
     row(t("Parakeet, on your computer"), t("The most accurate, offline, 25 languages. Downloaded once (about {0} MB).", { 0: number(status.models.downloadMb) }), modelsControl(ctx)),
+    divider(),
+    row(t("Model memory preset"), t("Choose how long the speech model stays in RAM between recordings. Active wake-phrase listening keeps it loaded."), memoryPreset),
     h("div", { class: "hub-note", text: t("Your voice never leaves this computer: Parakeet turns it into text here, and the recording is dropped as soon as it is pasted.") }),
   )));
 

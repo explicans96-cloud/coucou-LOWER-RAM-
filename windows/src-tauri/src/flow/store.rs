@@ -84,6 +84,16 @@ pub enum SummaryEngine {
     Off,
 }
 
+/// How long the offline recognizer stays loaded after use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MemoryPreset {
+    #[default]
+    MaxPerformance,
+    Balanced,
+    AlwaysReady,
+}
+
 /// The preferences of dictation and of the window.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -106,6 +116,7 @@ pub struct Prefs {
     pub summary_engine: SummaryEngine,
     /// Open the Coucou window when Coucou is opened (not when it starts with the computer).
     pub open_at_launch: bool,
+    pub memory_preset: MemoryPreset,
     /// « OK Coucou »: listen for it and answer with Claude (needs the Claude key).
     pub voice: bool,
     /// The other apps' sound is muted while Coucou listens to you (Windows).
@@ -129,6 +140,7 @@ impl Default for Prefs {
             default_style: Style::Natural,
             summary_engine: SummaryEngine::Claude,
             open_at_launch: true,
+            memory_preset: MemoryPreset::default(),
             voice: false,
             mute_others: true,
             voice_output: "system".into(),
@@ -602,5 +614,6 @@ mod tests {
         assert_eq!(p.key, FlowKey::RightAlt);
         assert_eq!(p.keep_days, 30);
         assert!(p.open_at_launch);
+        assert_eq!(p.memory_preset, MemoryPreset::MaxPerformance);
     }
 }

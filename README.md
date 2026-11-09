@@ -28,6 +28,20 @@ Approve permissions, watch your agents work, drop a file, chat with Claude — a
 
 ---
 
+## Windows memory presets
+
+The `windows-30s` branch adds a **Model memory preset** under **Flow → Settings → Recognition**.
+
+| Preset | When the speech model unloads |
+| --- | --- |
+| **Max Performance** (default) | After about 30 seconds of inactivity |
+| **Balanced** | After about 2 minutes of inactivity |
+| **Always Ready** | Keeps the model in RAM after it loads |
+
+The model stays available during dictation and call recording. After an unload, your shortcut starts reloading it as you speak. The optional “OK Coucou” wake phrase has its own switch and keeps the model loaded while it listens.
+
+In a Windows startup test of Max Performance, the main process dropped from **738 MiB to 71 MiB** after **31 seconds**. See the [Windows build instructions](windows/README.md#build-it-yourself).
+
 ## Why
 
 Some studios showed off gorgeous notch companions… and never let anyone use them.

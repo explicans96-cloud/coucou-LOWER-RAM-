@@ -58,8 +58,21 @@ async function fixture(t, render) {
   await render(page, ctx);
   t.after(() => ctx.onLeave?.());
   await flush();
-  return { page, write: fn => { write = fn; } };
+  return { page, status, write: fn => { write = fn; } };
 }
+
+test("selecting a memory preset changes only the model retention preference", async t => {
+  const { page, status } = await fixture(t, flowSettingsPage);
+  const select = page.find("select").find(el => el.getAttribute("aria-label") === "Model memory preset");
+  assert.equal(select.value, "max-performance");
+  status.prefs.voice = true;
+  const original = { ...status.prefs };
+  for (const preset of ["balanced", "always-ready", "max-performance"]) {
+    select.value = preset;
+    select.fire("change");
+    assert.deepEqual(status.prefs, { ...original, memoryPreset: preset });
+  }
+});
 
 test("a failed history deletion retains the entry and supports retry", async t => {
   const f = await fixture(t, dictationPage);

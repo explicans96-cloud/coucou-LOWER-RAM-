@@ -35,6 +35,7 @@ export function flowKeyId(prefs: { key: FlowKey; keyCombo?: string[] }): FlowKey
 }
 export type Edge = "bottom" | "bottom-left" | "bottom-right" | "left" | "right";
 export type Style = "verbatim" | "natural" | "polished";
+export type MemoryPreset = "max-performance" | "balanced" | "always-ready";
 
 export interface FlowPrefs {
   enabled: boolean;
@@ -48,6 +49,7 @@ export interface FlowPrefs {
   defaultStyle: Style;
   summaryEngine: "claude" | "off";
   openAtLaunch: boolean;
+  memoryPreset: MemoryPreset;
   /** « OK Coucou »: listen for it and answer with Claude. */
   voice: boolean;
   voiceOutput: VoiceOutput;

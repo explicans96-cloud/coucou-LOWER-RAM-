@@ -274,19 +274,29 @@ fn recognizer_slot() -> &'static Mutex<cache::Cache<OfflineRecognizer>> {
 
 /// Release the model after a quiet gap between recordings.
 pub(crate) fn start_cache_maintenance(app: AppHandle) {
+    use crate::flow::store::MemoryPreset;
+
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
+        let preset = crate::flow::get(&app)
+            .map(|flow| flow.store.lock().unwrap().prefs.memory_preset)
+            .unwrap_or_default();
+        let timeout = match preset {
+            MemoryPreset::MaxPerformance => cache::IDLE_TIMEOUT,
+            MemoryPreset::Balanced => Duration::from_secs(120),
+            MemoryPreset::AlwaysReady => continue,
+        };
         let keep_warm = crate::flow::pill::dictating(&app)
             || crate::notes::is_recording(&app)
             || crate::voice::is_listening();
         // Do not overlap destroying the old ONNX model and loading a new one.
         let _load = load_lock().lock().unwrap();
         let expired = recognizer_slot().lock().unwrap().take_idle(
-            Instant::now(), cache::IDLE_TIMEOUT, keep_warm,
+            Instant::now(), timeout, keep_warm,
         );
         if let Some(model) = expired {
             drop(model);
-            crate::log::line("Parakeet released after 30 idle seconds");
+            crate::log::line(format!("Parakeet released after {} idle seconds", timeout.as_secs()));
         }
     });
 }

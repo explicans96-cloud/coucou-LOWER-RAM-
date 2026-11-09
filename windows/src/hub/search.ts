@@ -96,7 +96,7 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   },
   { id: "flow.ai", page: "flowsettings", title: "flow.ai.title", terms: ["flow.prompt-mode", "flow.translate"] },
   { id: "flow.permission", page: "flowsettings", title: "hub.settings.permission", terms: ["flow.accessibility-open"] },
-  { id: "flow.recognition", page: "flowsettings", title: "hub.settings.recognition", terms: ["Dictation language"] },
+  { id: "flow.recognition", page: "flowsettings", title: "hub.settings.recognition", terms: ["Dictation language", "Model memory preset", "Max Performance · 30 seconds", "Balanced · 2 minutes", "Always Ready · keep loaded"] },
   { id: "flow.summary", page: "flowsettings", title: "hub.page.notes", terms: ["notes.engine"] },
   { id: "flow.app", page: "flowsettings", title: "hub.settings.app", terms: ["hub.settings.dock", "hub.settings.open-at-launch"] },
   { id: "flow.privacy", page: "flowsettings", title: "hub.settings.privacy", terms: ["hub.settings.keep"] },
